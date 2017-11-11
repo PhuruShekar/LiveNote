@@ -6,7 +6,7 @@ function contributionScore(words, totalWords, time, supply, scalingFactor=1) {
 	
 }
 
-function editScore(arrayContributions, arrayDomainSize, time, supply, scalingFactor=1) {
+function editScore(arrayContributions, arrayDomainSize, time, supply, scalingFactor=)1 {
 	//score should be within a reasonable range
 	var score = 0;
 	for (i=0; i<arrayContributions.length; i++) {
