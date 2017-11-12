@@ -2,10 +2,21 @@
 <html>
     <head>
         <meta charset="utf-8">
+        <link rel="stylesheet" type="text/css" href="https://unpkg.com/pell/dist/pell.min.css">
     </head>
     <body>
+        <script src="/socket.io/socket.io.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
-        <script type="text/javascript" src="clientbundle.js" charset="utf-8"></script>
+        <script src="clientbundle.js"></script>
+
+        <!--UI???-->
+        <textarea id ="name" placeholder="Richard Feynman"></textarea>
+        <br>
+        <ul id="snippets"></ul>
+        <div id="usersConnected"></div>
+        <textarea id="editor" placeholder="Type notes here!" focus></textarea>
+        <br>
+        <button id="newSnippet">Create a new snippet!</button>
     </body>
 </html>
 
