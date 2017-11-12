@@ -16926,14 +16926,14 @@ io.on('connection', function(socket)
                     .on('end', function()
                         {
                             //emit after finished
-                            socket.emit('initial snippets', snippets)
+                            socket.emit('initial snippets', approved)
                         });
                 isInit = true;
             }
             else
             {
                 //inital notes exist
-                socket.emit('initial snippets', snippets);
+                socket.emit('initial snippets', approved);
             };
 
 
