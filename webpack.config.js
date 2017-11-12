@@ -23,12 +23,17 @@ var config =
                                     test: /\.js$/,
                                     include: APP_DIR,
                                     loader: 'babel-loader',
+                                    query: {
+                                             presets: [ 'babel-preset-es2015' ].map(require.resolve),
+    
+                                           }              
                                 },
                                 {
                                     test: /\.css$/,
                                     include: CSS_DIR, 
                                     loaders: ['style-loader', 'css-loader'], 
                                 }
+                                  
                              ]
                 }       
     },
