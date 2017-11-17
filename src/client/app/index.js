@@ -13,46 +13,71 @@ $(document).ready(function()
             var socket = io.connect();
             console.log('Connected.');
 
-            
-            //initial set of notes
-            socket.on('initial snippets', function(data)
+           
+            //text buffer
+            var textBuffer = '';
+            //view of master
+            socket.on('view master', function(data)
                     {
-                        
+                        console.log("viewing master doc");
                         var html = '';
                         for (var i = 0; i < data.length; i++)
                         {
                             //store html as a var and add to dom afterward
                             html += '<li>' + data[i].note + '</li>';
                         }
-                        $('#mastered').html(html);
+                        $('#masters').html(html);
                     });
 
-            //New note emitted - add it to current list
-            socket.on('new snippet', function(data)
+            //view of contributions
+            socket.on('view contrib', function(data)
                     {
-                        $('#snippets').append('<li>' + data.note + '</li>');
+                        console.log("viewing contributions");
+                        var html = '';
+                        for (var i = 0; i < data.length; i++)
+                        {
+                            //store html as a var and add to dom afterward
+                            html += '<li>' + data[i].note + '</li>';
+                        }
+                        $('#contribs').html(html);
                     });
 
 
             //New socket connected
             socket.on('users connected', function(data)
                     {
-                        $('#usersConnected').html('Users connected: ' + data);
+                            $('#usersConnected').html('Users connected: ' + data);
                     });
-
-            
-            
-
-            //New snippet
-            $('#newSnippet').click(function()
+            //Username
+            $('textarea#username').on("keyup", function (event)
                     {
-                        var text = $('textarea#editor').val(); 
-                        var name = $('textarea#name').val();
-                        var newSnippet = 
+                        var name = $('textarea#username').val();
+                        if(name.length >= 4)
                         {
-                            "user"  :   name,
-                            "note"  :   text
-                        };
-                        socket.emit('new snippet', newSnippet);
+                            $('textarea#snippetEditor').prop('disabled', false);
+                        }
+                    });
+            //New snippet
+           
+            $('textarea#snippetEditor').on("keydown", function(event)
+                    {
+                        
+                        var textBuffer = $('textarea#snippetEditor').val().trim();
+                        if((event.which == 13 || event.which == 11) && textBuffer.length > 0)
+                        {
+                            $('textarea#username').prop('disabled', true);
+                            var name = $('textarea#username').val();
+                            var newSnippet = 
+                            {
+                                "user"  :   name,
+                                "note"  :   textBuffer
+                            };
+                            socket.emit('new snippet', newSnippet);
+                            console.log('new snippet created');
+                            //clear textarea and buffer
+                           textBuffer = '';
+                           $('textarea#snippetEditor').val('');
+                        }
+
                     });
         });

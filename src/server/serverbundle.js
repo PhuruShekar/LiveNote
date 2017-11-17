@@ -3938,7 +3938,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 /***/ (function(module, exports, __webpack_require__) {
 
 
-module.exports = __webpack_require__(216);
+module.exports = __webpack_require__(217);
 
 
 /***/ }),
@@ -4342,9 +4342,9 @@ module.exports = PerMessageDeflate;
  */
 
 var debug = __webpack_require__(1)('socket.io-parser');
-var Emitter = __webpack_require__(243);
+var Emitter = __webpack_require__(244);
 var hasBin = __webpack_require__(89);
-var binary = __webpack_require__(244);
+var binary = __webpack_require__(245);
 var isBuf = __webpack_require__(98);
 
 /**
@@ -13849,8 +13849,8 @@ PoolSelector.ORDER = function PoolSelectorOrder() {
  * Module dependencies.
  */
 
-var XHR = __webpack_require__(215);
-var JSONP = __webpack_require__(222);
+var XHR = __webpack_require__(216);
+var JSONP = __webpack_require__(223);
 
 /**
  * Export transports.
@@ -13858,7 +13858,7 @@ var JSONP = __webpack_require__(222);
 
 module.exports = exports = {
   polling: polling,
-  websocket: __webpack_require__(223)
+  websocket: __webpack_require__(224)
 };
 
 /**
@@ -13894,7 +13894,7 @@ function polling (req) {
 var Transport = __webpack_require__(48);
 var parser = __webpack_require__(35);
 var zlib = __webpack_require__(40);
-var accepts = __webpack_require__(221);
+var accepts = __webpack_require__(222);
 var util = __webpack_require__(0);
 var debug = __webpack_require__(1)('engine:polling');
 
@@ -14305,7 +14305,7 @@ Polling.prototype.headers = function (req, headers) {
  * Module requirements.
  */
 
-var isArray = __webpack_require__(218);
+var isArray = __webpack_require__(219);
 
 var toString = Object.prototype.toString;
 var withNativeBlob = typeof global.Blob === 'function' || toString.call(global.Blob) === '[object BlobConstructor]';
@@ -14870,7 +14870,7 @@ Socket.prototype.closeTransport = function (discard) {
 
 const WebSocket = __webpack_require__(92);
 
-WebSocket.Server = __webpack_require__(240);
+WebSocket.Server = __webpack_require__(241);
 WebSocket.Receiver = __webpack_require__(95);
 WebSocket.Sender = __webpack_require__(97);
 
@@ -14893,12 +14893,12 @@ module.exports = WebSocket;
 const EventEmitter = __webpack_require__(2);
 const crypto = __webpack_require__(11);
 const Ultron = __webpack_require__(93);
-const https = __webpack_require__(237);
+const https = __webpack_require__(238);
 const http = __webpack_require__(6);
 const url = __webpack_require__(9);
 
 const PerMessageDeflate = __webpack_require__(36);
-const EventTarget = __webpack_require__(238);
+const EventTarget = __webpack_require__(239);
 const Extensions = __webpack_require__(94);
 const constants = __webpack_require__(50);
 const Receiver = __webpack_require__(95);
@@ -15831,7 +15831,7 @@ module.exports = { format, parse };
 const safeBuffer = __webpack_require__(17);
 
 const PerMessageDeflate = __webpack_require__(36);
-const isValidUTF8 = __webpack_require__(239);
+const isValidUTF8 = __webpack_require__(240);
 const bufferUtil = __webpack_require__(49);
 const ErrorCodes = __webpack_require__(96);
 const constants = __webpack_require__(50);
@@ -16851,10 +16851,11 @@ var path = __webpack_require__(4);
 var app = express();
 var mysql = __webpack_require__(72);
 
+var key_values = __webpack_require__(211);
 //Pass express application function to http
 const server = __webpack_require__(6).createServer(app);
 //Pass the server to socket.io
-const io = __webpack_require__(211)(server);
+const io = __webpack_require__(212)(server);
 const port = process.env.PORT || 3000;
 
 //Are we listening
@@ -16870,10 +16871,10 @@ app.use(express.static(path.join(__dirname, '../client/public')));
 //Database credentials
 var db = mysql.createConnection(
         { 
-            host: 'localhost',
-            user: 'root',
-            database: 'noteDatabase',
-            password: 'IAMGROOT'
+            host: key_values.host,
+            user: key_values.user,
+            database: key_values.database,
+            password: key_values.password
         });
 
 //Error logging
@@ -16889,35 +16890,63 @@ db.connect(function(err)
 //Definition of global vars
 var numUsers = 0;
 var snippets = [];
-var approved = [];
+var masters = [];
+
 var isInit = false;
 var socketCount = 0;
+
+//the magic of copy and paste
 var MySqlDateTime = function() {return (new Date ((new Date((new Date(new Date())).toISOString() )).getTime() - ((new Date()).getTimezoneOffset()*60000))).toISOString().slice(0, 19).replace('T', ' ')};
+
+
+//Merging
+var mergedText = function(c)
+    {
+        db.query('SELECT * FROM snippets WHERE user != ? ORDER BY entrytime;',
+                c.user, function(err, results)
+                {
+    
+                    if(err) 
+                    {
+                        console.log(this.sql);
+                        console.log(err);
+                    }
+                });
+    }
 
 
 //adding a connection
 io.on('connection', function(socket)
         {
+            console.log('User connected');
             socketCount++;
             //push to all sockets the number of users
             io.sockets.emit('users connected', socketCount);
-
             //disconnect
             socket.on('disconnect', function()
                     {
                         socketCount--;
                         io.sockets.emit('users connected', socketCount);
+                        console.log('User disconnected.');
                     });
-            
-            
             
             //check initial query
             if(!isInit)
             {
                 //Initial start
              
-
-                db.query('SELECT * FROM snippets')
+                db.query('SELECT * FROM masterdoc;')
+                    .on('result', function(data)
+                        {
+                            //push results
+                            masters.push(data);
+                        })
+                    .on('end', function()
+                        {
+                            //emit after finished
+                            io.sockets.emit('view master', masters);
+                        });
+                db.query('SELECT * FROM snippets;')
                     .on('result', function(data)
                         {
                             //push results
@@ -16926,25 +16955,24 @@ io.on('connection', function(socket)
                     .on('end', function()
                         {
                             //emit after finished
-                            socket.emit('initial snippets', approved)
+                            io.sockets.emit('view contrib', snippets);
                         });
                 isInit = true;
             }
             else
             {
-                //inital notes exist
-                socket.emit('initial snippets', approved);
+                //notes exist
+                io.sockets.emit('view contrib', snippets);
+                console.log('There are pre-existing snippets');
+                io.sockets.emit('view master', masters);
+                console.log('There are pre-existing master entries');
             };
-
-
 
 
             //new note added
             socket.on('new snippet', function(data)
                     {
-                        snippets.push(data);
-                        //push to sockets
-                        io.sockets.emit('new snippet', data);
+
                         //db injection --how to generalize?
                         var now = MySqlDateTime();
                         db.query('INSERT INTO snippets (user, entrytime, score, note) VALUES (?,?,?,?);', [data.user, now, 0, data.note],
@@ -16955,26 +16983,14 @@ io.on('connection', function(socket)
                                         console.log(this.sql);
                                         console.log(err);
                                     }
-                                });
-
-                        var contrib = 
-                        {
-                            "id"    :   approved.length,
-                            "user"  :   data.user,
-                            "entrytime":now,
-                            "note"  :   data.note
-                        };
-
-                        approved.push(contrib);
-                        
-                        db.query('INSERT INTO masterdoc (id, user, entrytime, note) VALUES (?,?,?,?);', [approved.length, data.user, now, data.note],
-                                function(err, results)
+                                })
+                            .on('end', function()
                                 {
-                                    if(err)
-                                    {
-                                        console.log(this.sql);
-                                        console.log(err);
-                                    }
+
+                                  //push results
+                                  snippets.push(data);
+                                  //emit after finished
+                                  io.sockets.emit('view contrib', snippets);
                                 });
                     });
         });                            
@@ -37060,6 +37076,20 @@ PoolNamespace.prototype._getClusterNode = function _getClusterNode() {
 
 /***/ }),
 /* 211 */
+/***/ (function(module, exports) {
+
+module.exports =
+{
+    //database configuration
+    host: 'localhost',
+    user:   'root',
+    database: 'noteDatabase',
+    password: 'IAMGROOT'
+};
+
+
+/***/ }),
+/* 212 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(__dirname) {
@@ -37071,12 +37101,12 @@ var http = __webpack_require__(6);
 var read = __webpack_require__(8).readFileSync;
 var path = __webpack_require__(4);
 var exists = __webpack_require__(8).existsSync;
-var engine = __webpack_require__(212);
-var clientVersion = __webpack_require__(241).version;
-var Client = __webpack_require__(242);
+var engine = __webpack_require__(213);
+var clientVersion = __webpack_require__(242).version;
+var Client = __webpack_require__(243);
 var Emitter = __webpack_require__(2).EventEmitter;
-var Namespace = __webpack_require__(246);
-var Adapter = __webpack_require__(248);
+var Namespace = __webpack_require__(247);
+var Adapter = __webpack_require__(249);
 var parser = __webpack_require__(37);
 var debug = __webpack_require__(1)('socket.io:server');
 var url = __webpack_require__(9);
@@ -37540,7 +37570,7 @@ Server.listen = Server;
 /* WEBPACK VAR INJECTION */}.call(exports, "/"))
 
 /***/ }),
-/* 212 */
+/* 213 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -37587,7 +37617,7 @@ exports.protocol = 1;
  * @api public
  */
 
-exports.Server = __webpack_require__(213);
+exports.Server = __webpack_require__(214);
 
 /**
  * Expose Socket constructor.
@@ -37672,7 +37702,7 @@ function attach (server, options) {
 
 
 /***/ }),
-/* 213 */
+/* 214 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -37682,7 +37712,7 @@ function attach (server, options) {
 
 var qs = __webpack_require__(27);
 var parse = __webpack_require__(9).parse;
-var base64id = __webpack_require__(214);
+var base64id = __webpack_require__(215);
 var transports = __webpack_require__(87);
 var EventEmitter = __webpack_require__(2).EventEmitter;
 var Socket = __webpack_require__(90);
@@ -37782,7 +37812,7 @@ Server.prototype.init = function () {
   var wsModule;
   try {
     switch (this.wsEngine) {
-      case 'uws': wsModule = __webpack_require__(224); break;
+      case 'uws': wsModule = __webpack_require__(225); break;
       case 'ws': wsModule = __webpack_require__(91); break;
       default: throw new Error('unknown wsEngine');
     }
@@ -38257,7 +38287,7 @@ function checkInvalidHeaderChar(val) {
 
 
 /***/ }),
-/* 214 */
+/* 215 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /*!
@@ -38366,7 +38396,7 @@ exports = module.exports = new Base64Id();
 
 
 /***/ }),
-/* 215 */
+/* 216 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -38441,17 +38471,17 @@ XHR.prototype.headers = function (req, headers) {
 
 
 /***/ }),
-/* 216 */
+/* 217 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
  * Module dependencies.
  */
 
-var utf8 = __webpack_require__(217);
+var utf8 = __webpack_require__(218);
 var hasBinary = __webpack_require__(89);
-var after = __webpack_require__(219);
-var keys = __webpack_require__(220);
+var after = __webpack_require__(220);
+var keys = __webpack_require__(221);
 
 /**
  * Current protocol version.
@@ -38927,7 +38957,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 
 
 /***/ }),
-/* 217 */
+/* 218 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(module) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/utf8js v2.1.2 by @mathias */
@@ -39188,7 +39218,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(69)(module)))
 
 /***/ }),
-/* 218 */
+/* 219 */
 /***/ (function(module, exports) {
 
 var toString = {}.toString;
@@ -39199,7 +39229,7 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 219 */
+/* 220 */
 /***/ (function(module, exports) {
 
 module.exports = after
@@ -39233,7 +39263,7 @@ function noop() {}
 
 
 /***/ }),
-/* 220 */
+/* 221 */
 /***/ (function(module, exports) {
 
 
@@ -39258,7 +39288,7 @@ module.exports = Object.keys || function keys (obj){
 
 
 /***/ }),
-/* 221 */
+/* 222 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -39496,7 +39526,7 @@ function validMime(type) {
 
 
 /***/ }),
-/* 222 */
+/* 223 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -39577,7 +39607,7 @@ JSONP.prototype.doWrite = function (data, options, callback) {
 
 
 /***/ }),
-/* 223 */
+/* 224 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -39717,7 +39747,7 @@ WebSocket.prototype.doClose = function (fn) {
 
 
 /***/ }),
-/* 224 */
+/* 225 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -39747,7 +39777,7 @@ const native = (() => {
         try {
             return process.binding('uws_builtin');
         } catch (e) {
-            return __webpack_require__(225)(`./uws_${process.platform}_${process.versions.modules}`);
+            return __webpack_require__(226)(`./uws_${process.platform}_${process.versions.modules}`);
         }
     } catch (e) {
         const version = process.version.substring(1).split('.').map(function(n) {
@@ -40287,21 +40317,21 @@ module.exports = WebSocketClient;
 
 
 /***/ }),
-/* 225 */
+/* 226 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var map = {
-	"./uws_darwin_46.node": 226,
-	"./uws_darwin_47.node": 227,
-	"./uws_darwin_48.node": 228,
-	"./uws_darwin_51.node": 229,
-	"./uws_linux_46.node": 230,
-	"./uws_linux_47.node": 231,
-	"./uws_linux_48.node": 232,
-	"./uws_linux_51.node": 233,
-	"./uws_linux_59.node": 234,
-	"./uws_win32_48.node": 235,
-	"./uws_win32_51.node": 236
+	"./uws_darwin_46.node": 227,
+	"./uws_darwin_47.node": 228,
+	"./uws_darwin_48.node": 229,
+	"./uws_darwin_51.node": 230,
+	"./uws_linux_46.node": 231,
+	"./uws_linux_47.node": 232,
+	"./uws_linux_48.node": 233,
+	"./uws_linux_51.node": 234,
+	"./uws_linux_59.node": 235,
+	"./uws_win32_48.node": 236,
+	"./uws_win32_51.node": 237
 };
 function webpackContext(req) {
 	return __webpack_require__(webpackContextResolve(req));
@@ -40317,13 +40347,7 @@ webpackContext.keys = function webpackContextKeys() {
 };
 webpackContext.resolve = webpackContextResolve;
 module.exports = webpackContext;
-webpackContext.id = 225;
-
-/***/ }),
-/* 226 */
-/***/ (function(module, exports) {
-
-throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+webpackContext.id = 226;
 
 /***/ }),
 /* 227 */
@@ -40347,7 +40371,7 @@ throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may 
 /* 230 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 231 */
@@ -40377,7 +40401,7 @@ throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may ne
 /* 235 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 236 */
@@ -40389,10 +40413,16 @@ throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may 
 /* 237 */
 /***/ (function(module, exports) {
 
-module.exports = require("https");
+throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 238 */
+/***/ (function(module, exports) {
+
+module.exports = require("https");
+
+/***/ }),
+/* 239 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40554,7 +40584,7 @@ module.exports = EventTarget;
 
 
 /***/ }),
-/* 239 */
+/* 240 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40578,7 +40608,7 @@ try {
 
 
 /***/ }),
-/* 240 */
+/* 241 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40921,13 +40951,13 @@ function abortConnection (socket, code, message) {
 
 
 /***/ }),
-/* 241 */
+/* 242 */
 /***/ (function(module, exports) {
 
-module.exports = {"_from":"socket.io-client","_id":"socket.io-client@2.0.4","_inBundle":false,"_integrity":"sha1-CRilUkBtxeVAs4Dc2Xr8SmQzL44=","_location":"/socket.io-client","_phantomChildren":{},"_requested":{"type":"tag","registry":true,"raw":"socket.io-client","name":"socket.io-client","escapedName":"socket.io-client","rawSpec":"","saveSpec":null,"fetchSpec":"latest"},"_requiredBy":["#USER","/","/socket.io"],"_resolved":"https://registry.npmjs.org/socket.io-client/-/socket.io-client-2.0.4.tgz","_shasum":"0918a552406dc5e540b380dcd97afc4a64332f8e","_spec":"socket.io-client","_where":"/home/Ez/Projects/HackPrinceton/src/client/public","bugs":{"url":"https://github.com/Automattic/socket.io-client/issues"},"bundleDependencies":false,"contributors":[{"name":"Guillermo Rauch","email":"rauchg@gmail.com"},{"name":"Arnout Kazemier","email":"info@3rd-eden.com"},{"name":"Vladimir Dronnikov","email":"dronnikov@gmail.com"},{"name":"Einar Otto Stangvik","email":"einaros@gmail.com"}],"dependencies":{"backo2":"1.0.2","base64-arraybuffer":"0.1.5","component-bind":"1.0.0","component-emitter":"1.2.1","debug":"~2.6.4","engine.io-client":"~3.1.0","has-cors":"1.1.0","indexof":"0.0.1","object-component":"0.0.3","parseqs":"0.0.5","parseuri":"0.0.5","socket.io-parser":"~3.1.1","to-array":"0.1.4"},"deprecated":false,"description":"[![Build Status](https://secure.travis-ci.org/socketio/socket.io-client.svg?branch=master)](http://travis-ci.org/socketio/socket.io-client) [![Dependency Status](https://david-dm.org/socketio/socket.io-client.svg)](https://david-dm.org/socketio/socket.io-client) [![devDependency Status](https://david-dm.org/socketio/socket.io-client/dev-status.svg)](https://david-dm.org/socketio/socket.io-client#info=devDependencies) ![NPM version](https://badge.fury.io/js/socket.io-client.svg) ![Downloads](http://img.shields.io/npm/dm/socket.io-client.svg?style=flat) [![](http://slack.socket.io/badge.svg?)](http://slack.socket.io)","devDependencies":{"babel-core":"^6.24.1","babel-eslint":"4.1.7","babel-loader":"7.0.0","babel-preset-es2015":"6.24.1","concat-stream":"^1.6.0","derequire":"^2.0.6","eslint-config-standard":"4.4.0","eslint-plugin-standard":"1.3.1","expect.js":"0.3.1","gulp":"^3.9.1","gulp-eslint":"1.1.1","gulp-file":"^0.3.0","gulp-istanbul":"^1.1.1","gulp-mocha":"^4.3.1","gulp-task-listing":"1.0.1","imports-loader":"^0.7.1","istanbul":"^0.4.5","mocha":"^3.3.0","socket.io":"2.0.4","strip-loader":"0.1.2","text-blob-builder":"0.0.1","webpack-stream":"3.2.0","zuul":"^3.11.1  ","zuul-builder-webpack":"^1.2.0","zuul-ngrok":"4.0.0"},"files":["lib/","dist/"],"homepage":"https://github.com/Automattic/socket.io-client#readme","keywords":["realtime","framework","websocket","tcp","events","client"],"license":"MIT","main":"./lib/index","name":"socket.io-client","repository":{"type":"git","url":"git+https://github.com/Automattic/socket.io-client.git"},"scripts":{"test":"gulp test"},"version":"2.0.4"}
+module.exports = {"_args":[["socket.io-client@2.0.4","/home/Ez/Projects/HackPrinceton"]],"_from":"socket.io-client@2.0.4","_id":"socket.io-client@2.0.4","_inBundle":false,"_integrity":"sha1-CRilUkBtxeVAs4Dc2Xr8SmQzL44=","_location":"/socket.io-client","_phantomChildren":{},"_requested":{"type":"version","registry":true,"raw":"socket.io-client@2.0.4","name":"socket.io-client","escapedName":"socket.io-client","rawSpec":"2.0.4","saveSpec":null,"fetchSpec":"2.0.4"},"_requiredBy":["/","/socket.io"],"_resolved":"https://registry.npmjs.org/socket.io-client/-/socket.io-client-2.0.4.tgz","_spec":"2.0.4","_where":"/home/Ez/Projects/HackPrinceton","bugs":{"url":"https://github.com/Automattic/socket.io-client/issues"},"contributors":[{"name":"Guillermo Rauch","email":"rauchg@gmail.com"},{"name":"Arnout Kazemier","email":"info@3rd-eden.com"},{"name":"Vladimir Dronnikov","email":"dronnikov@gmail.com"},{"name":"Einar Otto Stangvik","email":"einaros@gmail.com"}],"dependencies":{"backo2":"1.0.2","base64-arraybuffer":"0.1.5","component-bind":"1.0.0","component-emitter":"1.2.1","debug":"~2.6.4","engine.io-client":"~3.1.0","has-cors":"1.1.0","indexof":"0.0.1","object-component":"0.0.3","parseqs":"0.0.5","parseuri":"0.0.5","socket.io-parser":"~3.1.1","to-array":"0.1.4"},"description":"[![Build Status](https://secure.travis-ci.org/socketio/socket.io-client.svg?branch=master)](http://travis-ci.org/socketio/socket.io-client) [![Dependency Status](https://david-dm.org/socketio/socket.io-client.svg)](https://david-dm.org/socketio/socket.io-client) [![devDependency Status](https://david-dm.org/socketio/socket.io-client/dev-status.svg)](https://david-dm.org/socketio/socket.io-client#info=devDependencies) ![NPM version](https://badge.fury.io/js/socket.io-client.svg) ![Downloads](http://img.shields.io/npm/dm/socket.io-client.svg?style=flat) [![](http://slack.socket.io/badge.svg?)](http://slack.socket.io)","devDependencies":{"babel-core":"^6.24.1","babel-eslint":"4.1.7","babel-loader":"7.0.0","babel-preset-es2015":"6.24.1","concat-stream":"^1.6.0","derequire":"^2.0.6","eslint-config-standard":"4.4.0","eslint-plugin-standard":"1.3.1","expect.js":"0.3.1","gulp":"^3.9.1","gulp-eslint":"1.1.1","gulp-file":"^0.3.0","gulp-istanbul":"^1.1.1","gulp-mocha":"^4.3.1","gulp-task-listing":"1.0.1","imports-loader":"^0.7.1","istanbul":"^0.4.5","mocha":"^3.3.0","socket.io":"2.0.4","strip-loader":"0.1.2","text-blob-builder":"0.0.1","webpack-stream":"3.2.0","zuul":"^3.11.1  ","zuul-builder-webpack":"^1.2.0","zuul-ngrok":"4.0.0"},"files":["lib/","dist/"],"homepage":"https://github.com/Automattic/socket.io-client#readme","keywords":["realtime","framework","websocket","tcp","events","client"],"license":"MIT","main":"./lib/index","name":"socket.io-client","repository":{"type":"git","url":"git+https://github.com/Automattic/socket.io-client.git"},"scripts":{"test":"gulp test"},"version":"2.0.4"}
 
 /***/ }),
-/* 242 */
+/* 243 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -41185,7 +41215,7 @@ Client.prototype.destroy = function(){
 
 
 /***/ }),
-/* 243 */
+/* 244 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -41354,7 +41384,7 @@ Emitter.prototype.hasListeners = function(event){
 
 
 /***/ }),
-/* 244 */
+/* 245 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /*global Blob,File*/
@@ -41363,7 +41393,7 @@ Emitter.prototype.hasListeners = function(event){
  * Module requirements
  */
 
-var isArray = __webpack_require__(245);
+var isArray = __webpack_require__(246);
 var isBuf = __webpack_require__(98);
 var toString = Object.prototype.toString;
 var withNativeBlob = typeof global.Blob === 'function' || toString.call(global.Blob) === '[object BlobConstructor]';
@@ -41501,7 +41531,7 @@ exports.removeBlobs = function(data, callback) {
 
 
 /***/ }),
-/* 245 */
+/* 246 */
 /***/ (function(module, exports) {
 
 var toString = {}.toString;
@@ -41512,7 +41542,7 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 246 */
+/* 247 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -41520,7 +41550,7 @@ module.exports = Array.isArray || function (arr) {
  * Module dependencies.
  */
 
-var Socket = __webpack_require__(247);
+var Socket = __webpack_require__(248);
 var Emitter = __webpack_require__(2).EventEmitter;
 var parser = __webpack_require__(37);
 var debug = __webpack_require__(1)('socket.io:namespace');
@@ -41797,7 +41827,7 @@ Namespace.prototype.compress = function(compress){
 
 
 /***/ }),
-/* 247 */
+/* 248 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -42360,7 +42390,7 @@ Socket.prototype.run = function(event, fn){
 
 
 /***/ }),
-/* 248 */
+/* 249 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -42629,7 +42659,7 @@ Room.prototype.del = function(id){
 
 
 /***/ }),
-/* 249 */
+/* 250 */
 /***/ (function(module, exports) {
 
 function webpackEmptyContext(req) {
@@ -42638,7 +42668,7 @@ function webpackEmptyContext(req) {
 webpackEmptyContext.keys = function() { return []; };
 webpackEmptyContext.resolve = webpackEmptyContext;
 module.exports = webpackEmptyContext;
-webpackEmptyContext.id = 249;
+webpackEmptyContext.id = 250;
 
 /***/ })
 /******/ ]);

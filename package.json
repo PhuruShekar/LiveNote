@@ -1,5 +1,5 @@
 {
-  "name": "hackprinceton",
+  "name": "LiveNote",
   "version": "1.0.0",
   "description": "",
   "main": "webpack.config.js",
@@ -18,7 +18,6 @@
     "mysql": "^2.15.0",
     "mysql-server": "^1.0.5",
     "parchment": "^1.1.2",
-    "pell": "^0.7.0",
     "prune": "0.0.2",
     "rich-text": "^3.1.0",
     "script-loader": "^0.7.2",
@@ -30,7 +29,9 @@
     "ts-loader": "^3.1.1",
     "typescript": "^2.6.1",
     "typings": "^2.1.1",
-    "webpack": "^3.8.1"
+    "webpack": "^3.8.1",
+    "webpack-dev-server": "^2.9.4",
+    "webpack-devserver": "0.0.6"
   },
   "devDependencies": {
     "babel-core": "^6.26.0",

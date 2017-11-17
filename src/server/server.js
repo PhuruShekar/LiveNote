@@ -4,6 +4,7 @@ var path = require('path');
 var app = express();
 var mysql = require('mysql');
 
+var key_values = require('./config.js');
 //Pass express application function to http
 const server = require('http').createServer(app);
 //Pass the server to socket.io
@@ -23,10 +24,10 @@ app.use(express.static(path.join(__dirname, '../client/public')));
 //Database credentials
 var db = mysql.createConnection(
         { 
-            host: 'localhost',
-            user: 'root',
-            database: 'noteDatabase',
-            password: 'IAMGROOT'
+            host: key_values.host,
+            user: key_values.user,
+            database: key_values.database,
+            password: key_values.password
         });
 
 //Error logging
@@ -42,35 +43,63 @@ db.connect(function(err)
 //Definition of global vars
 var numUsers = 0;
 var snippets = [];
-var approved = [];
+var masters = [];
+
 var isInit = false;
 var socketCount = 0;
+
+//the magic of copy and paste
 var MySqlDateTime = function() {return (new Date ((new Date((new Date(new Date())).toISOString() )).getTime() - ((new Date()).getTimezoneOffset()*60000))).toISOString().slice(0, 19).replace('T', ' ')};
+
+
+//Merging
+var mergedText = function(c)
+    {
+        db.query('SELECT * FROM snippets WHERE user != ? ORDER BY entrytime;',
+                c.user, function(err, results)
+                {
+    
+                    if(err) 
+                    {
+                        console.log(this.sql);
+                        console.log(err);
+                    }
+                });
+    }
 
 
 //adding a connection
 io.on('connection', function(socket)
         {
+            console.log('User connected');
             socketCount++;
             //push to all sockets the number of users
             io.sockets.emit('users connected', socketCount);
-
             //disconnect
             socket.on('disconnect', function()
                     {
                         socketCount--;
                         io.sockets.emit('users connected', socketCount);
+                        console.log('User disconnected.');
                     });
-            
-            
             
             //check initial query
             if(!isInit)
             {
                 //Initial start
              
-
-                db.query('SELECT * FROM snippets')
+                db.query('SELECT * FROM masterdoc;')
+                    .on('result', function(data)
+                        {
+                            //push results
+                            masters.push(data);
+                        })
+                    .on('end', function()
+                        {
+                            //emit after finished
+                            io.sockets.emit('view master', masters);
+                        });
+                db.query('SELECT * FROM snippets;')
                     .on('result', function(data)
                         {
                             //push results
@@ -79,25 +108,24 @@ io.on('connection', function(socket)
                     .on('end', function()
                         {
                             //emit after finished
-                            socket.emit('initial snippets', approved)
+                            io.sockets.emit('view contrib', snippets);
                         });
                 isInit = true;
             }
             else
             {
-                //inital notes exist
-                socket.emit('initial snippets', approved);
+                //notes exist
+                io.sockets.emit('view contrib', snippets);
+                console.log('There are pre-existing snippets');
+                io.sockets.emit('view master', masters);
+                console.log('There are pre-existing master entries');
             };
-
-
 
 
             //new note added
             socket.on('new snippet', function(data)
                     {
-                        snippets.push(data);
-                        //push to sockets
-                        io.sockets.emit('new snippet', data);
+
                         //db injection --how to generalize?
                         var now = MySqlDateTime();
                         db.query('INSERT INTO snippets (user, entrytime, score, note) VALUES (?,?,?,?);', [data.user, now, 0, data.note],
@@ -108,26 +136,14 @@ io.on('connection', function(socket)
                                         console.log(this.sql);
                                         console.log(err);
                                     }
-                                });
-
-                        var contrib = 
-                        {
-                            "id"    :   approved.length,
-                            "user"  :   data.user,
-                            "entrytime":now,
-                            "note"  :   data.note
-                        };
-
-                        approved.push(contrib);
-                        
-                        db.query('INSERT INTO masterdoc (id, user, entrytime, note) VALUES (?,?,?,?);', [approved.length, data.user, now, data.note],
-                                function(err, results)
+                                })
+                            .on('end', function()
                                 {
-                                    if(err)
-                                    {
-                                        console.log(this.sql);
-                                        console.log(err);
-                                    }
+
+                                  //push results
+                                  snippets.push(data);
+                                  //emit after finished
+                                  io.sockets.emit('view contrib', snippets);
                                 });
                     });
         });                            

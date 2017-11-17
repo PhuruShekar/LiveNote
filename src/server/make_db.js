@@ -37,7 +37,7 @@ db.connect(function(err)
 
                 //the tables
                 db.query('CREATE TABLE snippets (user VARCHAR(20), entrytime DATETIME, score DECIMAL, note TEXT);'
-                        +'CREATE TABLE masterdoc (id TINYINT, user VARCHAR(20), entrytime DATETIME, note TEXT)',
+                        +'CREATE TABLE masterdoc (id TINYINT, entrytime DATETIME, note TEXT)',
                         function(err, result)
                         {
                             if(err)
