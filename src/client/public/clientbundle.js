@@ -88,6 +88,7 @@ $(document).ready(function () {
     //view of master
     socket.on('view master', function (data) {
         console.log("viewing master doc");
+        $('#masters').html('');
         var html = '';
         for (var i = 0; i < data.length; i++) {
             //store html as a var and add to dom afterward
@@ -124,6 +125,7 @@ $(document).ready(function () {
 
         var textBuffer = $('textarea#snippetEditor').val().trim();
         if ((event.which == 13 || event.which == 11) && textBuffer.length > 0) {
+            event.preventDefault();
             $('textarea#username').prop('disabled', true);
             var name = $('textarea#username').val();
             var newSnippet = {
@@ -135,6 +137,7 @@ $(document).ready(function () {
             //clear textarea and buffer
             textBuffer = '';
             $('textarea#snippetEditor').val('');
+            return false;
         }
     });
 }); //client side

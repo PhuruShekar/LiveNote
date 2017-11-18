@@ -3938,7 +3938,7 @@ function nextTick(fn, arg1, arg2, arg3) {
 /***/ (function(module, exports, __webpack_require__) {
 
 
-module.exports = __webpack_require__(217);
+module.exports = __webpack_require__(220);
 
 
 /***/ }),
@@ -4342,9 +4342,9 @@ module.exports = PerMessageDeflate;
  */
 
 var debug = __webpack_require__(1)('socket.io-parser');
-var Emitter = __webpack_require__(244);
+var Emitter = __webpack_require__(247);
 var hasBin = __webpack_require__(89);
-var binary = __webpack_require__(245);
+var binary = __webpack_require__(248);
 var isBuf = __webpack_require__(98);
 
 /**
@@ -13849,8 +13849,8 @@ PoolSelector.ORDER = function PoolSelectorOrder() {
  * Module dependencies.
  */
 
-var XHR = __webpack_require__(216);
-var JSONP = __webpack_require__(223);
+var XHR = __webpack_require__(219);
+var JSONP = __webpack_require__(226);
 
 /**
  * Export transports.
@@ -13858,7 +13858,7 @@ var JSONP = __webpack_require__(223);
 
 module.exports = exports = {
   polling: polling,
-  websocket: __webpack_require__(224)
+  websocket: __webpack_require__(227)
 };
 
 /**
@@ -13894,7 +13894,7 @@ function polling (req) {
 var Transport = __webpack_require__(48);
 var parser = __webpack_require__(35);
 var zlib = __webpack_require__(40);
-var accepts = __webpack_require__(222);
+var accepts = __webpack_require__(225);
 var util = __webpack_require__(0);
 var debug = __webpack_require__(1)('engine:polling');
 
@@ -14305,7 +14305,7 @@ Polling.prototype.headers = function (req, headers) {
  * Module requirements.
  */
 
-var isArray = __webpack_require__(219);
+var isArray = __webpack_require__(222);
 
 var toString = Object.prototype.toString;
 var withNativeBlob = typeof global.Blob === 'function' || toString.call(global.Blob) === '[object BlobConstructor]';
@@ -14870,7 +14870,7 @@ Socket.prototype.closeTransport = function (discard) {
 
 const WebSocket = __webpack_require__(92);
 
-WebSocket.Server = __webpack_require__(241);
+WebSocket.Server = __webpack_require__(244);
 WebSocket.Receiver = __webpack_require__(95);
 WebSocket.Sender = __webpack_require__(97);
 
@@ -14893,12 +14893,12 @@ module.exports = WebSocket;
 const EventEmitter = __webpack_require__(2);
 const crypto = __webpack_require__(11);
 const Ultron = __webpack_require__(93);
-const https = __webpack_require__(238);
+const https = __webpack_require__(241);
 const http = __webpack_require__(6);
 const url = __webpack_require__(9);
 
 const PerMessageDeflate = __webpack_require__(36);
-const EventTarget = __webpack_require__(239);
+const EventTarget = __webpack_require__(242);
 const Extensions = __webpack_require__(94);
 const constants = __webpack_require__(50);
 const Receiver = __webpack_require__(95);
@@ -15831,7 +15831,7 @@ module.exports = { format, parse };
 const safeBuffer = __webpack_require__(17);
 
 const PerMessageDeflate = __webpack_require__(36);
-const isValidUTF8 = __webpack_require__(240);
+const isValidUTF8 = __webpack_require__(243);
 const bufferUtil = __webpack_require__(49);
 const ErrorCodes = __webpack_require__(96);
 const constants = __webpack_require__(50);
@@ -16850,12 +16850,16 @@ var express = __webpack_require__(100);
 var path = __webpack_require__(4);
 var app = express();
 var mysql = __webpack_require__(72);
+//other dependencies
+var linguistics = __webpack_require__(211);
+var munkres = __webpack_require__(212);
+var mergePhrases = __webpack_require__(213);
 
-var key_values = __webpack_require__(211);
+var key_values = __webpack_require__(214);
 //Pass express application function to http
 const server = __webpack_require__(6).createServer(app);
 //Pass the server to socket.io
-const io = __webpack_require__(212)(server);
+const io = __webpack_require__(215)(server);
 const port = process.env.PORT || 3000;
 
 //Are we listening
@@ -16890,29 +16894,16 @@ db.connect(function(err)
 //Definition of global vars
 var numUsers = 0;
 var snippets = [];
+var snippetsBuffer = {};
+var previousUser = '';
 var masters = [];
+var entries = 0;
 
 var isInit = false;
 var socketCount = 0;
 
 //the magic of copy and paste
 var MySqlDateTime = function() {return (new Date ((new Date((new Date(new Date())).toISOString() )).getTime() - ((new Date()).getTimezoneOffset()*60000))).toISOString().slice(0, 19).replace('T', ' ')};
-
-
-//Merging
-var mergedText = function(c)
-    {
-        db.query('SELECT * FROM snippets WHERE user != ? ORDER BY entrytime;',
-                c.user, function(err, results)
-                {
-    
-                    if(err) 
-                    {
-                        console.log(this.sql);
-                        console.log(err);
-                    }
-                });
-    }
 
 
 //adding a connection
@@ -16945,6 +16936,7 @@ io.on('connection', function(socket)
                         {
                             //emit after finished
                             io.sockets.emit('view master', masters);
+                            masters = [];
                         });
                 db.query('SELECT * FROM snippets;')
                     .on('result', function(data)
@@ -16955,18 +16947,11 @@ io.on('connection', function(socket)
                     .on('end', function()
                         {
                             //emit after finished
-                            io.sockets.emit('view contrib', snippets);
+                            // to debug
+                            //io.sockets.emit('view contrib', snippets);
                         });
                 isInit = true;
             }
-            else
-            {
-                //notes exist
-                io.sockets.emit('view contrib', snippets);
-                console.log('There are pre-existing snippets');
-                io.sockets.emit('view master', masters);
-                console.log('There are pre-existing master entries');
-            };
 
 
             //new note added
@@ -16989,10 +16974,90 @@ io.on('connection', function(socket)
 
                                   //push results
                                   snippets.push(data);
+                                  process(data);
                                   //emit after finished
-                                  io.sockets.emit('view contrib', snippets);
+                                  
+                                  
+                                  // to debug
+                                  //io.sockets.emit('view contrib', snippets);
                                 });
                     });
+            //finding common phrases
+            function process(data)
+            {
+                var masterNote = '';
+                if(!(data.user in snippetsBuffer))
+                {
+                    snippetsBuffer[data.user] =
+                    {
+                        "notes" : [data.note],
+                    }
+                    if(previousUser !== '' && previousUser !== data.user)
+                    {
+                        var common = mergePhrases.mergePhrases(data.note, snippetsBuffer[previousUser].notes.slice(-1));
+                        masterNote = common.join([separator = ' ']);
+
+                    }
+                    else 
+                    {
+                        masterNote = data.note;
+                    }
+                    previousUser = data.user;
+
+                    
+                }
+                else
+                {
+                    snippetsBuffer[data.user].notes.push(data.note);
+                    if(previousUser !== data.user)
+                    {
+
+                        var common = mergePhrases.mergePhrases(data.note, snippetsBuffer[previousUser].notes.slice(-1));
+                        masterNote = common.join([separator = ' ']);
+                    }
+                    else
+                    {
+                       // snippetsBuffer[previousUser].notes.push(snippetsBuffer[previousUser].notes.pop() + data.note);
+                    }
+                    previousUser = data.user;
+                   
+                }
+                if(masterNote.length !== 0)
+                {
+                    entries++;
+                    var now = MySqlDateTime();
+                    db.query('INSERT INTO masterdoc (id, entrytime, note) VALUES (?,?,?);', [entries, now, masterNote],
+                        function(err, results)
+                        {
+                            if(err)
+                            {
+                                console.log(this.sql);
+                                console.log(err);
+                            }
+                        })
+                    .on('end', function()
+                        {
+
+                            db.query('SELECT * FROM masterdoc;')
+                                .on('result', function(data)
+                                    {
+                                        //push results
+                                        masters.push(data);
+                                    })
+                                .on('end', function()
+                                    {
+                                        //emit after finished
+                                        console.log(masters);
+                                        io.sockets.emit('view master', masters);
+                                        masters = [];
+                                    });
+                        });
+                };
+                    
+            };
+                   
+
+
         });                            
 
 /* WEBPACK VAR INJECTION */}.call(exports, "/"))
@@ -37078,6 +37143,1009 @@ PoolNamespace.prototype._getClusterNode = function _getClusterNode() {
 /* 211 */
 /***/ (function(module, exports) {
 
+//linguisticsCall.js
+module.exports = 
+{
+    formPairs: function(phrases1, phrases2) {
+        
+            
+            if (phrases1[0] === "default" || phrases2[0] === "default") {
+                console.log("Words not processed yet");
+                return;
+            }
+            
+            var similarityMatrix = new Array(phrases1.length);
+            for (var i = 0; i < phrases1.length; i++) {
+                similarityMatrix[i] = new Array(phrases2.length);
+            }
+            
+            //console.log(phrases1);
+            //console.log(phrases1.length);
+            //console.log(phrases2);
+            //console.log(phrases2.length);
+            //console.log("Ignore Above");
+            
+            for (var i = 0; i < phrases1.length; i++) {
+                //console.log(i);
+                for (var j = 0; j < phrases2.length; j++) {
+                    //console.log("   "+j);
+                    
+                    //I have no idea what i just did here
+                    // let result = (phrases1[i] + ' ' + phrases2[j])
+                    //  .split(' ')
+                    //  .filter(
+                    //      (w,i,words) => i === words.findIndex(v => v.toUpperCase() === w.toUpperCase())
+                    //      ).join(' ')
+                    // console.log("result", result);
+                    // var words1 = phrases1[i].toString().split(/\s+/g);
+                    // var words2 = phrases2[j].toString().split(/\s+/g);
+                    // result = result.toString().split(/\s+/g);
+                    
+                    //console.log(words1 + " : " + words2 + " : " + result);
+                    
+                    //console.log("words1[0].length " + words1[0].length + "=" + words1[0]);
+                    //console.log("words2.length " + words2.length + "=" + words2);
+                    
+                    
+                    // determine the number of elements in the union
+                    var obj = {};
+                    for (var m = phrases1[i].length-1; m >= 0; -- m)
+                        obj[phrases1[i][m]] = phrases1[i][m];
+                    for (var m = phrases2[j].length-1; m >= 0; -- m)
+                        obj[phrases2[j][m]] = phrases2[j][m];
+                    var res = [];
+                    for (var k in obj) {
+                        if (obj.hasOwnProperty(k)) // <-- optional
+                            res.push(obj[k]);
+                    }
+                    
+                    //counter counts how many in common between the phrases
+                    var inCommon = 0;
+                    for (var m = 0; m < phrases1[i].length; m++) {
+                        //console.log("m=", m)
+                        for (var n = 0; n < phrases2[j].length; n++) {
+                            console.log(phrases1[i] + ";; "+ phrases2[j]);
+                            if (phrases1[i][m].toLowerCase() === phrases2[j][n].toLowerCase()) {
+                                //console.log('word '+phrases1[i][m]+' was found in both strings');
+                                inCommon++;
+                            }
+                        }
+                    }
+                    console.log("score======"+inCommon/res.length);
+                    similarityMatrix[i][j] = 1- inCommon/res.length;
+                }
+            }
+            
+            var pairs = munkres(similarityMatrix);
+        
+            return pairs; //coordinates of the pairings, should be a nice mapping
+        },
+
+//==========================================================
+
+   getPhrases: function(string) {
+        var params = {
+            
+        };
+
+        
+            var sentence = string; 
+            var body = "{'language' : 'en','analyzerIds' : ['4fa79af1-f22c-408d-98bb-b7d7aeef7f04', '22a6b758-420f-4745-8a3c-46835a67c0d2'],'text' : '" + sentence + "'}";
+            
+            $.ajax({
+                url: "https://westus.api.cognitive.microsoft.com/linguistics/v1.0/analyze?" + $.param(params),
+                beforeSend: function (xhrObj) {
+                    // Request headers
+                    xhrObj.setRequestHeader("Content-Type", "application/json");
+                    xhrObj.setRequestHeader("Ocp-Apim-Subscription-Key", "6bf14c12f7ce4a23b99a49fd51f56058");
+                },
+                type: "POST",
+                // Request body
+                data: body,
+            })
+            .done(function (data) {
+                var first = data[0];
+                var second = data[1];
+                var result = first.result;
+                var x = result[0];
+                var tree = data[1].result[0];
+                console.log(data);
+                console.log(result);
+                //console.log(x);
+                console.log(tree);
+                var depth = 0;
+                
+                    //remove whitespaces
+                    //tree = tree.replace(/\s+/g, '');
+                    //console.log(tree);
+                    
+                    
+                    var n = tree.indexOf("TOP");
+                    if (n==-1) {
+                        console.log("TOP does not exist");
+                    }
+                    var depth = 0;
+                    var phrases = [];
+                    var batch = [];
+                    //phrases[phrases.length] = something
+                    var flag = false;
+                    
+                    
+                    for (var i=0;i<tree.length;i++) {
+                        //console.log(depth)
+                        var char = tree.charAt(i);
+                        if (char=="(") {
+                            depth++;
+                        } else if (char==")") {
+                            depth--;
+                        } else if (isLetter(char) || isNumber(char)){
+                            //check if the word this starts with is either NP, something with V, or PP
+                            var j = 0;
+                            while (true) {
+                                if (!(isLetter(tree.charAt(i+j+1)) || isNumber(tree.charAt(i+j+1)))) {
+                                    break;
+                                }
+                                j++;
+                            } //the word starts at index i and ends at index i+j
+                            var word = tree.substring(i,i+j+1);
+                            //console.log(":"+word+":");
+                            if (sentence.includes(word)) {
+                                batch[batch.length] = word;
+                            } else if (depth == 3) {
+                                if (flag==true) {
+                                //console.log("batch goes in  ");
+                                phrases[phrases.length] = batch;
+                                batch = [];
+                            } else {
+                                flag = true;
+                            }
+                        }
+                        i=i+j;
+                    } else if (char==" " || char==".") {
+                        continue;
+                    } else {
+                        console.log("unhandled character " + char + " at " + i);
+                    }
+                }
+                
+                phrases[phrases.length] = batch;
+                batch = [];
+                
+                console.log("Final Results");
+                for (var k=0; k<phrases.length; k++){
+                    console.log(phrases[k]);
+                }
+                phrases1 = phrases.slice();
+                return phrases;
+            })
+            .fail(function () {
+                alert("error");
+            });
+    },
+  
+    isLetter: function(str) {
+        return str.length === 1 && /^[A-Z]$/i.test(str);
+    },
+
+    isNumber: function(str) {
+        return str.length === 1 && /^[0-9]$/i.test(str);
+    },
+};
+
+
+/***/ }),
+/* 212 */
+/***/ (function(module, exports) {
+
+/**
+ * Introduction
+ * ============
+ *
+ * The Munkres module provides an implementation of the Munkres algorithm
+ * (also called the Hungarian algorithm or the Kuhn-Munkres algorithm),
+ * useful for solving the Assignment Problem.
+ *
+ * Assignment Problem
+ * ==================
+ *
+ * Let C be an n×n-matrix representing the costs of each of n workers
+ * to perform any of n jobs. The assignment problem is to assign jobs to
+ * workers in a way that minimizes the total cost. Since each worker can perform
+ * only one job and each job can be assigned to only one worker the assignments
+ * represent an independent set of the matrix C.
+ *
+ * One way to generate the optimal set is to create all permutations of
+ * the indices necessary to traverse the matrix so that no row and column
+ * are used more than once. For instance, given this matrix (expressed in
+ * Python)
+ *
+ *  matrix = [[5, 9, 1],
+ *        [10, 3, 2],
+ *        [8, 7, 4]]
+ *
+ * You could use this code to generate the traversal indices::
+ *
+ *  def permute(a, results):
+ *    if len(a) == 1:
+ *      results.insert(len(results), a)
+ *
+ *    else:
+ *      for i in range(0, len(a)):
+ *        element = a[i]
+ *        a_copy = [a[j] for j in range(0, len(a)) if j != i]
+ *        subresults = []
+ *        permute(a_copy, subresults)
+ *        for subresult in subresults:
+ *          result = [element] + subresult
+ *          results.insert(len(results), result)
+ *
+ *  results = []
+ *  permute(range(len(matrix)), results) # [0, 1, 2] for a 3x3 matrix
+ *
+ * After the call to permute(), the results matrix would look like this::
+ *
+ *  [[0, 1, 2],
+ *   [0, 2, 1],
+ *   [1, 0, 2],
+ *   [1, 2, 0],
+ *   [2, 0, 1],
+ *   [2, 1, 0]]
+ *
+ * You could then use that index matrix to loop over the original cost matrix
+ * and calculate the smallest cost of the combinations
+ *
+ *  n = len(matrix)
+ *  minval = sys.maxsize
+ *  for row in range(n):
+ *    cost = 0
+ *    for col in range(n):
+ *      cost += matrix[row][col]
+ *    minval = min(cost, minval)
+ *
+ *  print minval
+ *
+ * While this approach works fine for small matrices, it does not scale. It
+ * executes in O(n!) time: Calculating the permutations for an n×x-matrix
+ * requires n! operations. For a 12×12 matrix, that’s 479,001,600
+ * traversals. Even if you could manage to perform each traversal in just one
+ * millisecond, it would still take more than 133 hours to perform the entire
+ * traversal. A 20×20 matrix would take 2,432,902,008,176,640,000 operations. At
+ * an optimistic millisecond per operation, that’s more than 77 million years.
+ *
+ * The Munkres algorithm runs in O(n³) time, rather than O(n!). This
+ * package provides an implementation of that algorithm.
+ *
+ * This version is based on
+ * http://csclab.murraystate.edu/~bob.pilgrim/445/munkres.html
+ *
+ * This version was originally written for Python by Brian Clapper from the
+ * algorithm at the above web site (The ``Algorithm::Munkres`` Perl version,
+ * in CPAN, was clearly adapted from the same web site.) and ported to
+ * JavaScript by Anna Henningsen (addaleax).
+ *
+ * Usage
+ * =====
+ *
+ * Construct a Munkres object
+ *
+ *  var m = new Munkres();
+ *
+ * Then use it to compute the lowest cost assignment from a cost matrix. Here’s
+ * a sample program
+ *
+ *  var matrix = [[5, 9, 1],
+ *           [10, 3, 2],
+ *           [8, 7, 4]];
+ *  var m = new Munkres();
+ *  var indices = m.compute(matrix);
+ *  console.log(format_matrix(matrix), 'Lowest cost through this matrix:');
+ *  var total = 0;
+ *  for (var i = 0; i < indices.length; ++i) {
+ *    var row = indices[l][0], col = indices[l][1];
+ *    var value = matrix[row][col];
+ *    total += value;
+ *
+ *    console.log('(' + rol + ', ' + col + ') -> ' + value);
+ *  }
+ *
+ *  console.log('total cost:', total);
+ *
+ * Running that program produces::
+ *
+ *  Lowest cost through this matrix:
+ *  [5, 9, 1]
+ *  [10, 3, 2]
+ *  [8, 7, 4]
+ *  (0, 0) -> 5
+ *  (1, 1) -> 3
+ *  (2, 2) -> 4
+ *  total cost: 12
+ *
+ * The instantiated Munkres object can be used multiple times on different
+ * matrices.
+ *
+ * Non-square Cost Matrices
+ * ========================
+ *
+ * The Munkres algorithm assumes that the cost matrix is square. However, it's
+ * possible to use a rectangular matrix if you first pad it with 0 values to make
+ * it square. This module automatically pads rectangular cost matrices to make
+ * them square.
+ *
+ * Notes:
+ *
+ * - The module operates on a *copy* of the caller's matrix, so any padding will
+ *   not be seen by the caller.
+ * - The cost matrix must be rectangular or square. An irregular matrix will
+ *   *not* work.
+ *
+ * Calculating Profit, Rather than Cost
+ * ====================================
+ *
+ * The cost matrix is just that: A cost matrix. The Munkres algorithm finds
+ * the combination of elements (one from each row and column) that results in
+ * the smallest cost. It’s also possible to use the algorithm to maximize
+ * profit. To do that, however, you have to convert your profit matrix to a
+ * cost matrix. The simplest way to do that is to subtract all elements from a
+ * large value.
+ *
+ * The ``munkres`` module provides a convenience method for creating a cost
+ * matrix from a profit matrix, i.e. make_cost_matrix.
+ *
+ * References
+ * ==========
+ *
+ * 1. http://www.public.iastate.edu/~ddoty/HungarianAlgorithm.html
+ *
+ * 2. Harold W. Kuhn. The Hungarian Method for the assignment problem.
+ *    *Naval Research Logistics Quarterly*, 2:83-97, 1955.
+ *
+ * 3. Harold W. Kuhn. Variants of the Hungarian method for assignment
+ *    problems. *Naval Research Logistics Quarterly*, 3: 253-258, 1956.
+ *
+ * 4. Munkres, J. Algorithms for the Assignment and Transportation Problems.
+ *    *Journal of the Society of Industrial and Applied Mathematics*,
+ *    5(1):32-38, March, 1957.
+ *
+ * 5. https://en.wikipedia.org/wiki/Hungarian_algorithm
+ *
+ * Copyright and License
+ * =====================
+ * 
+ * Copyright 2008-2016 Brian M. Clapper
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * A very large numerical value which can be used like an integer
+ * (i. e., adding integers of similar size does not result in overflow).
+ */
+var MAX_SIZE = parseInt(Number.MAX_SAFE_INTEGER/2) || ((1 << 26)*(1 << 26));
+
+/**
+ * A default value to pad the cost matrix with if it is not quadratic.
+ */
+var DEFAULT_PAD_VALUE = 0;
+
+// ---------------------------------------------------------------------------
+// Classes
+// ---------------------------------------------------------------------------
+
+/**
+ * Calculate the Munkres solution to the classical assignment problem.
+ * See the module documentation for usage.
+ * @constructor
+ */
+function Munkres() {
+  this.C = null;
+
+  this.row_covered = [];
+  this.col_covered = [];
+  this.n = 0;
+  this.Z0_r = 0;
+  this.Z0_c = 0;
+  this.marked = null;
+  this.path = null;
+}
+
+/**
+ * Pad a possibly non-square matrix to make it square.
+ *
+ * @param {Array} matrix An array of arrays containing the matrix cells
+ * @param {Number} [pad_value] The value used to pad a rectangular matrix
+ *
+ * @return {Array} An array of arrays representing the padded matrix
+ */
+Munkres.prototype.pad_matrix = function(matrix, pad_value) {
+  pad_value = pad_value || DEFAULT_PAD_VALUE;
+
+  var max_columns = 0;
+  var total_rows = matrix.length;
+  var i;
+
+  for (i = 0; i < total_rows; ++i)
+    if (matrix[i].length > max_columns)
+      max_columns = matrix[i].length;
+
+  total_rows = max_columns > total_rows ? max_columns : total_rows;
+
+  var new_matrix = [];
+
+  for (i = 0; i < total_rows; ++i) {
+    var row = matrix[i] || [];
+    var new_row = row.slice();
+
+    // If this row is too short, pad it
+    while (total_rows > new_row.length)
+      new_row.push(pad_value);
+
+    new_matrix.push(new_row);
+  }
+
+  return new_matrix;
+};
+
+/**
+ * Compute the indices for the lowest-cost pairings between rows and columns
+ * in the database. Returns a list of (row, column) tuples that can be used
+ * to traverse the matrix.
+ *
+ * **WARNING**: This code handles square and rectangular matrices.
+ * It does *not* handle irregular matrices.
+ *
+ * @param {Array} cost_matrix The cost matrix. If this cost matrix is not square,
+ *                            it will be padded with DEFAULT_PAD_VALUE. Optionally,
+ *                            the pad value can be specified via options.padValue.
+ *                            This method does *not* modify the caller's matrix.
+ *                            It operates on a copy of the matrix.
+ * @param {Object} [options] Additional options to pass in
+ * @param {Number} [options.padValue] The value to use to pad a rectangular cost_matrix
+ *
+ * @return {Array} An array of ``(row, column)`` arrays that describe the lowest
+ *                 cost path through the matrix
+ */
+Munkres.prototype.compute = function(cost_matrix, options) {
+
+  options = options || {};
+  options.padValue = options.padValue || DEFAULT_PAD_VALUE;
+
+  this.C = this.pad_matrix(cost_matrix, options.padValue);
+  this.n = this.C.length;
+  this.original_length = cost_matrix.length;
+  this.original_width = cost_matrix[0].length;
+
+  var nfalseArray = []; /* array of n false values */
+  while (nfalseArray.length < this.n)
+    nfalseArray.push(false);
+  this.row_covered = nfalseArray.slice();
+  this.col_covered = nfalseArray.slice();
+  this.Z0_r = 0;
+  this.Z0_c = 0;
+  this.path =   this.__make_matrix(this.n * 2, 0);
+  this.marked = this.__make_matrix(this.n, 0);
+
+  var step = 1;
+
+  var steps = { 1 : this.__step1,
+                2 : this.__step2,
+                3 : this.__step3,
+                4 : this.__step4,
+                5 : this.__step5,
+                6 : this.__step6 };
+
+  while (true) {
+    var func = steps[step];
+    if (!func) // done
+      break;
+
+    step = func.apply(this);
+  }
+
+  var results = [];
+  for (var i = 0; i < this.original_length; ++i)
+    for (var j = 0; j < this.original_width; ++j)
+      if (this.marked[i][j] == 1)
+        results.push([i, j]);
+
+  return results;
+};
+
+/**
+ * Create an n×n matrix, populating it with the specific value.
+ *
+ * @param {Number} n Matrix dimensions
+ * @param {Number} val Value to populate the matrix with
+ *
+ * @return {Array} An array of arrays representing the newly created matrix
+ */
+Munkres.prototype.__make_matrix = function(n, val) {
+  var matrix = [];
+  for (var i = 0; i < n; ++i) {
+    matrix[i] = [];
+    for (var j = 0; j < n; ++j)
+      matrix[i][j] = val;
+  }
+
+  return matrix;
+};
+
+/**
+ * For each row of the matrix, find the smallest element and
+ * subtract it from every element in its row. Go to Step 2.
+ */
+Munkres.prototype.__step1 = function() {
+  for (var i = 0; i < this.n; ++i) {
+    // Find the minimum value for this row and subtract that minimum
+    // from every element in the row.
+    var minval = Math.min.apply(Math, this.C[i]);
+
+    for (var j = 0; j < this.n; ++j)
+      this.C[i][j] -= minval;
+  }
+
+  return 2;
+};
+
+/**
+ * Find a zero (Z) in the resulting matrix. If there is no starred
+ * zero in its row or column, star Z. Repeat for each element in the
+ * matrix. Go to Step 3.
+ */
+Munkres.prototype.__step2 = function() {
+  for (var i = 0; i < this.n; ++i) {
+    for (var j = 0; j < this.n; ++j) {
+      if (this.C[i][j] === 0 &&
+        !this.col_covered[j] &&
+        !this.row_covered[i])
+      {
+        this.marked[i][j] = 1;
+        this.col_covered[j] = true;
+        this.row_covered[i] = true;
+        break;
+      }
+    }
+  }
+
+  this.__clear_covers();
+
+  return 3;
+};
+
+/**
+ * Cover each column containing a starred zero. If K columns are
+ * covered, the starred zeros describe a complete set of unique
+ * assignments. In this case, Go to DONE, otherwise, Go to Step 4.
+ */
+Munkres.prototype.__step3 = function() {
+  var count = 0;
+
+  for (var i = 0; i < this.n; ++i) {
+    for (var j = 0; j < this.n; ++j) {
+      if (this.marked[i][j] == 1 && this.col_covered[j] == false) {
+        this.col_covered[j] = true;
+        ++count;
+      }
+    }
+  }
+
+  return (count >= this.n) ? 7 : 4;
+};
+
+/**
+ * Find a noncovered zero and prime it. If there is no starred zero
+ * in the row containing this primed zero, Go to Step 5. Otherwise,
+ * cover this row and uncover the column containing the starred
+ * zero. Continue in this manner until there are no uncovered zeros
+ * left. Save the smallest uncovered value and Go to Step 6.
+ */
+
+Munkres.prototype.__step4 = function() {
+  var done = false;
+  var row = -1, col = -1, star_col = -1;
+
+  while (!done) {
+    var z = this.__find_a_zero();
+    row = z[0];
+    col = z[1];
+
+    if (row < 0)
+      return 6;
+
+    this.marked[row][col] = 2;
+    star_col = this.__find_star_in_row(row);
+    if (star_col >= 0) {
+      col = star_col;
+      this.row_covered[row] = true;
+      this.col_covered[col] = false;
+    } else {
+      this.Z0_r = row;
+      this.Z0_c = col;
+      return 5;
+    }
+  }
+};
+
+/**
+ * Construct a series of alternating primed and starred zeros as
+ * follows. Let Z0 represent the uncovered primed zero found in Step 4.
+ * Let Z1 denote the starred zero in the column of Z0 (if any).
+ * Let Z2 denote the primed zero in the row of Z1 (there will always
+ * be one). Continue until the series terminates at a primed zero
+ * that has no starred zero in its column. Unstar each starred zero
+ * of the series, star each primed zero of the series, erase all
+ * primes and uncover every line in the matrix. Return to Step 3
+ */
+Munkres.prototype.__step5 = function() {
+  var count = 0;
+
+  this.path[count][0] = this.Z0_r;
+  this.path[count][1] = this.Z0_c;
+  var done = false;
+
+  while (!done) {
+    var row = this.__find_star_in_col(this.path[count][1]);
+    if (row >= 0) {
+      count++;
+      this.path[count][0] = row;
+      this.path[count][1] = this.path[count-1][1];
+    } else {
+      done = true;
+    }
+
+    if (!done) {
+      var col = this.__find_prime_in_row(this.path[count][0]);
+      count++;
+      this.path[count][0] = this.path[count-1][0];
+      this.path[count][1] = col;
+    }
+  }
+
+  this.__convert_path(this.path, count);
+  this.__clear_covers();
+  this.__erase_primes();
+  return 3;
+};
+
+/**
+ * Add the value found in Step 4 to every element of each covered
+ * row, and subtract it from every element of each uncovered column.
+ * Return to Step 4 without altering any stars, primes, or covered
+ * lines.
+ */
+Munkres.prototype.__step6 = function() {
+  var minval = this.__find_smallest();
+
+  for (var i = 0; i < this.n; ++i) {
+    for (var j = 0; j < this.n; ++j) {
+      if (this.row_covered[i])
+        this.C[i][j] += minval;
+      if (!this.col_covered[j])
+        this.C[i][j] -= minval;
+    }
+  }
+
+  return 4;
+};
+
+/**
+ * Find the smallest uncovered value in the matrix.
+ *
+ * @return {Number} The smallest uncovered value, or MAX_SIZE if no value was found
+ */
+Munkres.prototype.__find_smallest = function() {
+  var minval = MAX_SIZE;
+
+  for (var i = 0; i < this.n; ++i)
+    for (var j = 0; j < this.n; ++j)
+      if (!this.row_covered[i] && !this.col_covered[j])
+        if (minval > this.C[i][j])
+          minval = this.C[i][j];
+
+  return minval;
+};
+
+/**
+ * Find the first uncovered element with value 0.
+ *
+ * @return {Array} The indices of the found element or [-1, -1] if not found
+ */
+Munkres.prototype.__find_a_zero = function() {
+  for (var i = 0; i < this.n; ++i)
+    for (var j = 0; j < this.n; ++j)
+      if (this.C[i][j] === 0 &&
+        !this.row_covered[i] &&
+        !this.col_covered[j])
+        return [i, j];
+
+  return [-1, -1];
+};
+
+/**
+ * Find the first starred element in the specified row. Returns
+ * the column index, or -1 if no starred element was found.
+ *
+ * @param {Number} row The index of the row to search
+ * @return {Number}
+ */
+
+Munkres.prototype.__find_star_in_row = function(row) {
+  for (var j = 0; j < this.n; ++j)
+    if (this.marked[row][j] == 1)
+      return j;
+
+  return -1;
+};
+
+/**
+ * Find the first starred element in the specified column.
+ *
+ * @return {Number} The row index, or -1 if no starred element was found
+ */
+Munkres.prototype.__find_star_in_col = function(col) {
+  for (var i = 0; i < this.n; ++i)
+    if (this.marked[i][col] == 1)
+      return i;
+
+  return -1;
+};
+
+/**
+ * Find the first prime element in the specified row.
+ *
+ * @return {Number} The column index, or -1 if no prime element was found
+ */
+
+Munkres.prototype.__find_prime_in_row = function(row) {
+  for (var j = 0; j < this.n; ++j)
+    if (this.marked[row][j] == 2)
+      return j;
+
+  return -1;
+};
+
+Munkres.prototype.__convert_path = function(path, count) {
+  for (var i = 0; i <= count; ++i)
+    this.marked[path[i][0]][path[i][1]] =
+      (this.marked[path[i][0]][path[i][1]] == 1) ? 0 : 1;
+};
+
+/** Clear all covered matrix cells */
+Munkres.prototype.__clear_covers = function() {
+  for (var i = 0; i < this.n; ++i) {
+    this.row_covered[i] = false;
+    this.col_covered[i] = false;
+  }
+};
+
+/** Erase all prime markings */
+Munkres.prototype.__erase_primes = function() {
+  for (var i = 0; i < this.n; ++i)
+    for (var j = 0; j < this.n; ++j)
+      if (this.marked[i][j] == 2)
+        this.marked[i][j] = 0;
+};
+
+// ---------------------------------------------------------------------------
+// Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a cost matrix from a profit matrix by calling
+ * 'inversion_function' to invert each value. The inversion
+ * function must take one numeric argument (of any type) and return
+ * another numeric argument which is presumed to be the cost inverse
+ * of the original profit.
+ *
+ * This is a static method. Call it like this:
+ *
+ *  cost_matrix = make_cost_matrix(matrix[, inversion_func]);
+ *
+ * For example:
+ *
+ *  cost_matrix = make_cost_matrix(matrix, function(x) { return MAXIMUM - x; });
+ *
+ * @param {Array} profit_matrix An array of arrays representing the matrix
+ *                              to convert from a profit to a cost matrix
+ * @param {Function} [inversion_function] The function to use to invert each
+ *                                       entry in the profit matrix
+ *
+ * @return {Array} The converted matrix
+ */
+function make_cost_matrix (profit_matrix, inversion_function) {
+  var i, j;
+  if (!inversion_function) {
+    var maximum = -1.0/0.0;
+    for (i = 0; i < profit_matrix.length; ++i)
+      for (j = 0; j < profit_matrix[i].length; ++j)
+        if (profit_matrix[i][j] > maximum)
+          maximum = profit_matrix[i][j];
+
+    inversion_function = function(x) { return maximum - x; };
+  }
+
+  var cost_matrix = [];
+
+  for (i = 0; i < profit_matrix.length; ++i) {
+    var row = profit_matrix[i];
+    cost_matrix[i] = [];
+
+    for (j = 0; j < row.length; ++j)
+      cost_matrix[i][j] = inversion_function(profit_matrix[i][j]);
+  }
+
+  return cost_matrix;
+}
+
+/**
+ * Convenience function: Converts the contents of a matrix of integers
+ * to a printable string.
+ *
+ * @param {Array} matrix The matrix to print
+ *
+ * @return {String} The formatted matrix
+ */
+function format_matrix(matrix) {
+  var columnWidths = [];
+  var i, j;
+  for (i = 0; i < matrix.length; ++i) {
+    for (j = 0; j < matrix[i].length; ++j) {
+      var entryWidth = String(matrix[i][j]).length;
+
+      if (!columnWidths[j] || entryWidth >= columnWidths[j])
+        columnWidths[j] = entryWidth;
+    }
+  }
+
+  var formatted = '';
+  for (i = 0; i < matrix.length; ++i) {
+    for (j = 0; j < matrix[i].length; ++j) {
+      var s = String(matrix[i][j]);
+
+      // pad at front with spaces
+      while (s.length < columnWidths[j])
+        s = ' ' + s;
+
+      formatted += s;
+
+      // separate columns
+      if (j != matrix[i].length - 1)
+        formatted += ' ';
+    }
+
+    if (i != matrix[i].length - 1)
+      formatted += '\n';
+  }
+
+  return formatted;
+}
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+
+function computeMunkres(cost_matrix, options) {
+  var m = new Munkres();
+  return m.compute(cost_matrix, options);
+}
+
+computeMunkres.version = "1.2.2";
+computeMunkres.format_matrix = format_matrix;
+computeMunkres.make_cost_matrix = make_cost_matrix;
+computeMunkres.Munkres = Munkres; // backwards compatibility
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = computeMunkres;
+}
+
+
+/***/ }),
+/* 213 */
+/***/ (function(module, exports) {
+
+//mergePhrases.js
+module.exports = 
+{
+    mergePhrases: function(sentence1, sentence2){
+            var stru1 = (sentence1+'').split(" ");
+            var stru2 = (sentence2+'').split(" ");
+            
+            var shared = [];
+            
+        //	console.log("first sentence: " + stru1);
+        //	console.log("second sentence: " + stru2);
+            
+            var start = 0;
+            
+            for (var i = 0; i < stru1.length; i++) 
+            {	
+                for(var j = 0;j<stru2.length;j++)
+                {	
+                    if(stru1[i].toLowerCase()==stru2[j].toLowerCase())
+                    {
+                        shared.push(stru1[i]);
+                        //freqList.push(2);
+                        start = j;
+                        break;
+                    }
+                }
+            }
+            
+        // Output the shared array
+        //console.log("shared: " + shared);
+            
+            
+            //assuming that stru1 has the priority
+            var final = [];
+            var count1 = 0;
+            var count2 = 0;
+            for (var i=0; i<shared.length; i++) 
+            {
+                while (count1<stru1.length && stru1[count1].toLowerCase()!==shared[i].toLowerCase()) 
+                {
+           //         console.log("1: "+stru1[count1]);
+                    final.push(stru1[count1]);
+                    count1++;
+                }
+                while (count2<stru2.length && stru2[count2].toLowerCase()!==shared[i].toLowerCase()) 
+                {
+           //         console.log("2: " + stru2[count2]);
+                    final.push(stru2[count2]);
+                    count2++;
+                }
+           //     console.log("3: "+shared[i]);
+                final.push(shared[i]);
+                count1++;
+                count2++;
+            }
+            
+            while (count1<stru1.length) 
+            {
+                final.push(stru1[count1]);
+                count1++;
+            }
+            while (count2<stru2.length) 
+            {
+                final.push(stru2[count2]);
+                count2++;
+            } //do the ending condition
+            
+        //	console.log("final ordering: " + final);
+        
+        //	console.log("shared: " + shared);
+            
+            //frequency array
+            var freqArray = [];
+            for (var i=0; i<final.length; i++) 
+            {
+                if (shared.includes(final[i])) { // the assumption is that there are no two exact same words in a phrase
+                    freqArray.push(2);
+                } else {
+                    freqArray.push(1);
+                }
+            }
+            
+        //	console.log("freqArray: " + freqArray);
+            return final;	
+    }
+};
+
+
+
+/***/ }),
+/* 214 */
+/***/ (function(module, exports) {
+
 module.exports =
 {
     //database configuration
@@ -37089,7 +38157,7 @@ module.exports =
 
 
 /***/ }),
-/* 212 */
+/* 215 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(__dirname) {
@@ -37101,12 +38169,12 @@ var http = __webpack_require__(6);
 var read = __webpack_require__(8).readFileSync;
 var path = __webpack_require__(4);
 var exists = __webpack_require__(8).existsSync;
-var engine = __webpack_require__(213);
-var clientVersion = __webpack_require__(242).version;
-var Client = __webpack_require__(243);
+var engine = __webpack_require__(216);
+var clientVersion = __webpack_require__(245).version;
+var Client = __webpack_require__(246);
 var Emitter = __webpack_require__(2).EventEmitter;
-var Namespace = __webpack_require__(247);
-var Adapter = __webpack_require__(249);
+var Namespace = __webpack_require__(250);
+var Adapter = __webpack_require__(252);
 var parser = __webpack_require__(37);
 var debug = __webpack_require__(1)('socket.io:server');
 var url = __webpack_require__(9);
@@ -37570,7 +38638,7 @@ Server.listen = Server;
 /* WEBPACK VAR INJECTION */}.call(exports, "/"))
 
 /***/ }),
-/* 213 */
+/* 216 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
@@ -37617,7 +38685,7 @@ exports.protocol = 1;
  * @api public
  */
 
-exports.Server = __webpack_require__(214);
+exports.Server = __webpack_require__(217);
 
 /**
  * Expose Socket constructor.
@@ -37702,7 +38770,7 @@ function attach (server, options) {
 
 
 /***/ }),
-/* 214 */
+/* 217 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -37712,7 +38780,7 @@ function attach (server, options) {
 
 var qs = __webpack_require__(27);
 var parse = __webpack_require__(9).parse;
-var base64id = __webpack_require__(215);
+var base64id = __webpack_require__(218);
 var transports = __webpack_require__(87);
 var EventEmitter = __webpack_require__(2).EventEmitter;
 var Socket = __webpack_require__(90);
@@ -37812,7 +38880,7 @@ Server.prototype.init = function () {
   var wsModule;
   try {
     switch (this.wsEngine) {
-      case 'uws': wsModule = __webpack_require__(225); break;
+      case 'uws': wsModule = __webpack_require__(228); break;
       case 'ws': wsModule = __webpack_require__(91); break;
       default: throw new Error('unknown wsEngine');
     }
@@ -38287,7 +39355,7 @@ function checkInvalidHeaderChar(val) {
 
 
 /***/ }),
-/* 215 */
+/* 218 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /*!
@@ -38396,7 +39464,7 @@ exports = module.exports = new Base64Id();
 
 
 /***/ }),
-/* 216 */
+/* 219 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -38471,17 +39539,17 @@ XHR.prototype.headers = function (req, headers) {
 
 
 /***/ }),
-/* 217 */
+/* 220 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
  * Module dependencies.
  */
 
-var utf8 = __webpack_require__(218);
+var utf8 = __webpack_require__(221);
 var hasBinary = __webpack_require__(89);
-var after = __webpack_require__(220);
-var keys = __webpack_require__(221);
+var after = __webpack_require__(223);
+var keys = __webpack_require__(224);
 
 /**
  * Current protocol version.
@@ -38957,7 +40025,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 
 
 /***/ }),
-/* 218 */
+/* 221 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /* WEBPACK VAR INJECTION */(function(module) {var __WEBPACK_AMD_DEFINE_RESULT__;/*! https://mths.be/utf8js v2.1.2 by @mathias */
@@ -39218,7 +40286,7 @@ exports.decodePayloadAsBinary = function (data, binaryType, callback) {
 /* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(69)(module)))
 
 /***/ }),
-/* 219 */
+/* 222 */
 /***/ (function(module, exports) {
 
 var toString = {}.toString;
@@ -39229,7 +40297,7 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 220 */
+/* 223 */
 /***/ (function(module, exports) {
 
 module.exports = after
@@ -39263,7 +40331,7 @@ function noop() {}
 
 
 /***/ }),
-/* 221 */
+/* 224 */
 /***/ (function(module, exports) {
 
 
@@ -39288,7 +40356,7 @@ module.exports = Object.keys || function keys (obj){
 
 
 /***/ }),
-/* 222 */
+/* 225 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -39526,7 +40594,7 @@ function validMime(type) {
 
 
 /***/ }),
-/* 223 */
+/* 226 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -39607,7 +40675,7 @@ JSONP.prototype.doWrite = function (data, options, callback) {
 
 
 /***/ }),
-/* 224 */
+/* 227 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -39747,7 +40815,7 @@ WebSocket.prototype.doClose = function (fn) {
 
 
 /***/ }),
-/* 225 */
+/* 228 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -39777,7 +40845,7 @@ const native = (() => {
         try {
             return process.binding('uws_builtin');
         } catch (e) {
-            return __webpack_require__(226)(`./uws_${process.platform}_${process.versions.modules}`);
+            return __webpack_require__(229)(`./uws_${process.platform}_${process.versions.modules}`);
         }
     } catch (e) {
         const version = process.version.substring(1).split('.').map(function(n) {
@@ -40317,21 +41385,21 @@ module.exports = WebSocketClient;
 
 
 /***/ }),
-/* 226 */
+/* 229 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var map = {
-	"./uws_darwin_46.node": 227,
-	"./uws_darwin_47.node": 228,
-	"./uws_darwin_48.node": 229,
-	"./uws_darwin_51.node": 230,
-	"./uws_linux_46.node": 231,
-	"./uws_linux_47.node": 232,
-	"./uws_linux_48.node": 233,
-	"./uws_linux_51.node": 234,
-	"./uws_linux_59.node": 235,
-	"./uws_win32_48.node": 236,
-	"./uws_win32_51.node": 237
+	"./uws_darwin_46.node": 230,
+	"./uws_darwin_47.node": 231,
+	"./uws_darwin_48.node": 232,
+	"./uws_darwin_51.node": 233,
+	"./uws_linux_46.node": 234,
+	"./uws_linux_47.node": 235,
+	"./uws_linux_48.node": 236,
+	"./uws_linux_51.node": 237,
+	"./uws_linux_59.node": 238,
+	"./uws_win32_48.node": 239,
+	"./uws_win32_51.node": 240
 };
 function webpackContext(req) {
 	return __webpack_require__(webpackContextResolve(req));
@@ -40347,25 +41415,7 @@ webpackContext.keys = function webpackContextKeys() {
 };
 webpackContext.resolve = webpackContextResolve;
 module.exports = webpackContext;
-webpackContext.id = 226;
-
-/***/ }),
-/* 227 */
-/***/ (function(module, exports) {
-
-throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
-
-/***/ }),
-/* 228 */
-/***/ (function(module, exports) {
-
-throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
-
-/***/ }),
-/* 229 */
-/***/ (function(module, exports) {
-
-throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+webpackContext.id = 229;
 
 /***/ }),
 /* 230 */
@@ -40377,19 +41427,19 @@ throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may 
 /* 231 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 232 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 233 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '�' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 234 */
@@ -40407,22 +41457,40 @@ throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may ne
 /* 236 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 237 */
 /***/ (function(module, exports) {
 
-throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 238 */
 /***/ (function(module, exports) {
 
-module.exports = require("https");
+throw new Error("Module parse failed: Unexpected character '' (1:0)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
 
 /***/ }),
 /* 239 */
+/***/ (function(module, exports) {
+
+throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+
+/***/ }),
+/* 240 */
+/***/ (function(module, exports) {
+
+throw new Error("Module parse failed: Unexpected character '�' (1:2)\nYou may need an appropriate loader to handle this file type.\n(Source code omitted for this binary file)");
+
+/***/ }),
+/* 241 */
+/***/ (function(module, exports) {
+
+module.exports = require("https");
+
+/***/ }),
+/* 242 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40584,7 +41652,7 @@ module.exports = EventTarget;
 
 
 /***/ }),
-/* 240 */
+/* 243 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40608,7 +41676,7 @@ try {
 
 
 /***/ }),
-/* 241 */
+/* 244 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -40951,13 +42019,13 @@ function abortConnection (socket, code, message) {
 
 
 /***/ }),
-/* 242 */
+/* 245 */
 /***/ (function(module, exports) {
 
 module.exports = {"_args":[["socket.io-client@2.0.4","/home/Ez/Projects/HackPrinceton"]],"_from":"socket.io-client@2.0.4","_id":"socket.io-client@2.0.4","_inBundle":false,"_integrity":"sha1-CRilUkBtxeVAs4Dc2Xr8SmQzL44=","_location":"/socket.io-client","_phantomChildren":{},"_requested":{"type":"version","registry":true,"raw":"socket.io-client@2.0.4","name":"socket.io-client","escapedName":"socket.io-client","rawSpec":"2.0.4","saveSpec":null,"fetchSpec":"2.0.4"},"_requiredBy":["/","/socket.io"],"_resolved":"https://registry.npmjs.org/socket.io-client/-/socket.io-client-2.0.4.tgz","_spec":"2.0.4","_where":"/home/Ez/Projects/HackPrinceton","bugs":{"url":"https://github.com/Automattic/socket.io-client/issues"},"contributors":[{"name":"Guillermo Rauch","email":"rauchg@gmail.com"},{"name":"Arnout Kazemier","email":"info@3rd-eden.com"},{"name":"Vladimir Dronnikov","email":"dronnikov@gmail.com"},{"name":"Einar Otto Stangvik","email":"einaros@gmail.com"}],"dependencies":{"backo2":"1.0.2","base64-arraybuffer":"0.1.5","component-bind":"1.0.0","component-emitter":"1.2.1","debug":"~2.6.4","engine.io-client":"~3.1.0","has-cors":"1.1.0","indexof":"0.0.1","object-component":"0.0.3","parseqs":"0.0.5","parseuri":"0.0.5","socket.io-parser":"~3.1.1","to-array":"0.1.4"},"description":"[![Build Status](https://secure.travis-ci.org/socketio/socket.io-client.svg?branch=master)](http://travis-ci.org/socketio/socket.io-client) [![Dependency Status](https://david-dm.org/socketio/socket.io-client.svg)](https://david-dm.org/socketio/socket.io-client) [![devDependency Status](https://david-dm.org/socketio/socket.io-client/dev-status.svg)](https://david-dm.org/socketio/socket.io-client#info=devDependencies) ![NPM version](https://badge.fury.io/js/socket.io-client.svg) ![Downloads](http://img.shields.io/npm/dm/socket.io-client.svg?style=flat) [![](http://slack.socket.io/badge.svg?)](http://slack.socket.io)","devDependencies":{"babel-core":"^6.24.1","babel-eslint":"4.1.7","babel-loader":"7.0.0","babel-preset-es2015":"6.24.1","concat-stream":"^1.6.0","derequire":"^2.0.6","eslint-config-standard":"4.4.0","eslint-plugin-standard":"1.3.1","expect.js":"0.3.1","gulp":"^3.9.1","gulp-eslint":"1.1.1","gulp-file":"^0.3.0","gulp-istanbul":"^1.1.1","gulp-mocha":"^4.3.1","gulp-task-listing":"1.0.1","imports-loader":"^0.7.1","istanbul":"^0.4.5","mocha":"^3.3.0","socket.io":"2.0.4","strip-loader":"0.1.2","text-blob-builder":"0.0.1","webpack-stream":"3.2.0","zuul":"^3.11.1  ","zuul-builder-webpack":"^1.2.0","zuul-ngrok":"4.0.0"},"files":["lib/","dist/"],"homepage":"https://github.com/Automattic/socket.io-client#readme","keywords":["realtime","framework","websocket","tcp","events","client"],"license":"MIT","main":"./lib/index","name":"socket.io-client","repository":{"type":"git","url":"git+https://github.com/Automattic/socket.io-client.git"},"scripts":{"test":"gulp test"},"version":"2.0.4"}
 
 /***/ }),
-/* 243 */
+/* 246 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -41215,7 +42283,7 @@ Client.prototype.destroy = function(){
 
 
 /***/ }),
-/* 244 */
+/* 247 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -41384,7 +42452,7 @@ Emitter.prototype.hasListeners = function(event){
 
 
 /***/ }),
-/* 245 */
+/* 248 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /*global Blob,File*/
@@ -41393,7 +42461,7 @@ Emitter.prototype.hasListeners = function(event){
  * Module requirements
  */
 
-var isArray = __webpack_require__(246);
+var isArray = __webpack_require__(249);
 var isBuf = __webpack_require__(98);
 var toString = Object.prototype.toString;
 var withNativeBlob = typeof global.Blob === 'function' || toString.call(global.Blob) === '[object BlobConstructor]';
@@ -41531,7 +42599,7 @@ exports.removeBlobs = function(data, callback) {
 
 
 /***/ }),
-/* 246 */
+/* 249 */
 /***/ (function(module, exports) {
 
 var toString = {}.toString;
@@ -41542,7 +42610,7 @@ module.exports = Array.isArray || function (arr) {
 
 
 /***/ }),
-/* 247 */
+/* 250 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -41550,7 +42618,7 @@ module.exports = Array.isArray || function (arr) {
  * Module dependencies.
  */
 
-var Socket = __webpack_require__(248);
+var Socket = __webpack_require__(251);
 var Emitter = __webpack_require__(2).EventEmitter;
 var parser = __webpack_require__(37);
 var debug = __webpack_require__(1)('socket.io:namespace');
@@ -41827,7 +42895,7 @@ Namespace.prototype.compress = function(compress){
 
 
 /***/ }),
-/* 248 */
+/* 251 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -42390,7 +43458,7 @@ Socket.prototype.run = function(event, fn){
 
 
 /***/ }),
-/* 249 */
+/* 252 */
 /***/ (function(module, exports, __webpack_require__) {
 
 
@@ -42659,7 +43727,7 @@ Room.prototype.del = function(id){
 
 
 /***/ }),
-/* 250 */
+/* 253 */
 /***/ (function(module, exports) {
 
 function webpackEmptyContext(req) {
@@ -42668,7 +43736,7 @@ function webpackEmptyContext(req) {
 webpackEmptyContext.keys = function() { return []; };
 webpackEmptyContext.resolve = webpackEmptyContext;
 module.exports = webpackEmptyContext;
-webpackEmptyContext.id = 250;
+webpackEmptyContext.id = 253;
 
 /***/ })
 /******/ ]);
