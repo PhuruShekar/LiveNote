@@ -184,7 +184,7 @@ exports = module.exports = __webpack_require__(3)(undefined);
 
 
 // module
-exports.push([module.i, "body\n{\n    background: black;\n    color: white;\n}\n\n", ""]);
+exports.push([module.i, "body\n{\n    background: black;\n    color: white;\n    margin:auto;\n}\n.app\n{\n    text-align: center;\n    border: 3px solid green;\n \n    padding: 5px;\n}\n#masters\n{\n    text-align: center;\n}\n", ""]);
 
 // exports
 
